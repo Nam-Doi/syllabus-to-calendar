@@ -1,0 +1,22 @@
+{
+	"name": "syllabus-to-calendar",
+	"version": "1.0.0",
+	"main": "index.js",
+	"scripts": {
+		"dev": "nodemon index.js",
+		"start": "node index.js"
+	},
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"dependencies": {
+		"axios": "^1.13.2",
+		"dotenv": "^17.2.3",
+		"express": "^5.1.0",
+		"form-data": "^4.0.4",
+		"jsonrepair": "^3.13.1",
+		"multer": "^2.0.2",
+		"mysql2": "^3.15.3",
+		"nodemon": "^3.1.10"
+	}
+}
