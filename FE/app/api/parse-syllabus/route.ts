@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
       originalName.toLowerCase().endsWith(".pdf")
         ? "application/pdf"
         : originalName.toLowerCase().match(/\.(png|jpg|jpeg)$/)
-        ? "image/png"
-        : "application/octet-stream";
+          ? "image/png"
+          : "application/octet-stream";
 
     const formData = new FormData();
     formData.append(

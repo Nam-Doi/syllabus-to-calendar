@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ChatPage() {
   const sessionResult = await getSession();
-  
+
   if (!sessionResult.session) {
     redirect('/login');
   }
@@ -24,7 +24,6 @@ export default async function ChatPage() {
           Ask questions about your schedule, assignments, and exams
         </p>
       </div>
-      
       <ChatInterface />
     </div>
   );

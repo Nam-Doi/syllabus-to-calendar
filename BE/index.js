@@ -2,20 +2,18 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
-const { processOCRWithAI } = require("./src/services/textOCR");
-const { extractSyllabusData } = require("./src/services/clovaStudio");
+const cors = require("cors");
 const { normalizeSyllabusResult } = require("./src/utils/resultNormalizer");
 const chatRoutes = require("./src/routes/chatRoutes");
+const { extractSyllabusData } = require("./src/services/geminiService");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Validate required environment variables
 const requiredEnvVars = [
-  'SECRET_KEY_OCR',
-  'CLOVA_OCR_URL',
-  'CLOVA_STUDIO_API_KEY',
-  'CLOVA_STUDIO_URL'
+  'GEMINI_API_KEY',
+  'GROQ_API_KEY',
 ];
 
 const missingVars = requiredEnvVars.filter(key => !process.env[key]);
@@ -148,11 +146,6 @@ app.post(
     const sendEvent = (payload) => {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
-
-    const sendProgress = (step, message) => {
-      sendEvent({ type: "progress", step, message });
-    };
-
     try {
       if (!req.file) {
         sendEvent({
@@ -160,20 +153,21 @@ app.post(
           error: { message: "Image file is required" },
         });
         return res.end();
-      }
 
-      sendProgress(1, "Đang xử lý OCR...");
-      const extractedText = await processOCRWithAI(
+      };
+      sendEvent({ type: "progress", step: 1, message: "AI đang phân tích hình ảnh..." });
+      const aiResult = await extractSyllabusData(
         req.file.path,
-        req.file.originalname
+        req.file.mimetype
       );
-      fs.unlinkSync(req.file.path);
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
-      sendProgress(2, "Đang phân tích với AI...");
-      const aiResult = await extractSyllabusData(extractedText);
+      if (!aiResult.success && aiResult.error) {
+        throw new Error(aiResult.error);
+      }
       const normalizedResult = normalizeSyllabusResult(aiResult);
 
-      sendProgress(3, "Hoàn thành!");
+      sendEvent({ type: "progress", step: 2, message: "Hoàn thành!" });
       sendEvent({ type: "result", done: true, result: normalizedResult });
       res.end();
     } catch (error) {
@@ -187,26 +181,75 @@ app.post(
 );
 
 // Original JSON endpoint (keep for backward compatibility)
+// app.post("/process-syllabus", upload.single("image"), async (req, res) => {
+//   try {
+//     if (!req.file) {
+//       return res.status(400).json({ error: "Image file is required" });
+//     }
+
+//     const extractedText = await extractSyllabusData(
+//       req.file.path,
+//       req.file.originalname
+//     );
+//     fs.unlinkSync(req.file.path);
+
+//     const aiResult = await extractSyllabusData(extractedText);
+//     const normalizedResult = normalizeSyllabusResult(aiResult);
+
+//     res.json(normalizedResult);
+//   } catch (error) {
+//     if (req.file && fs.existsSync(req.file.path)) {
+//       fs.unlinkSync(req.file.path);
+//     }
+//     res.status(500).json({
+//       success: false,
+//       error: "Failed to process syllabus",
+//       details: error.message,
+//     });
+//   }
+// });
+
 app.post("/process-syllabus", upload.single("image"), async (req, res) => {
   try {
+    // 1. Validate file đầu vào
     if (!req.file) {
       return res.status(400).json({ error: "Image file is required" });
     }
 
-    const extractedText = await processOCRWithAI(
-      req.file.path,
-      req.file.originalname
-    );
-    fs.unlinkSync(req.file.path);
+    console.log(`[Backend] Processing: ${req.file.originalname} (${req.file.mimetype})`);
 
-    const aiResult = await extractSyllabusData(extractedText);
+    // 2. Gọi Gemini Service (GỌI 1 LẦN DUY NHẤT)
+    const aiResult = await extractSyllabusData(
+      req.file.path,      // Đường dẫn file (String) -> Hợp lệ với geminiService
+      req.file.mimetype   // MimeType (VD: image/png) -> QUAN TRỌNG: Đừng truyền originalName
+    );
+
+    // 3. Xóa file tạm ngay sau khi Gemini đọc xong
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    // 4. Kiểm tra lỗi từ Gemini trả về
+    if (!aiResult.success) {
+      console.error("[Backend] Gemini Failed:", aiResult.error);
+      return res.status(500).json(aiResult);
+    }
+
+    // 5. Chuẩn hóa dữ liệu (Nếu cần thiết)
+    // Lưu ý: aiResult.data chính là cấu trúc JSON mà Gemini trả về
     const normalizedResult = normalizeSyllabusResult(aiResult);
 
+    // 6. Trả về kết quả
     res.json(normalizedResult);
+
   } catch (error) {
+    console.error("[Backend] Critical Error:", error);
+
+    // Cleanup file nếu có lỗi bất ngờ
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
+
     res.status(500).json({
       success: false,
       error: "Failed to process syllabus",

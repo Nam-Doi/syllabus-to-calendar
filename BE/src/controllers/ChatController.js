@@ -1,9 +1,10 @@
 const db = require('../config/connectDB');
-const { processWithAI, streamAIResponse } = require('../services/clovaStudio');
 const { detectIntent, parseDate } = require('../services/IntentService');
-const { 
-    createAssignment, 
-    deleteAssignmentById, 
+const { streamChatResponse } = require('../services/geminiService');
+const { streamChatWithLlama } = require('../services/llamaService');
+const {
+    createAssignment,
+    deleteAssignmentById,
     findAssignmentByTitle,
     findCourseByName,
     createCourse
@@ -67,7 +68,7 @@ async function handleCreateAssignment(userId, params) {
     try {
         console.log('[handleCreateAssignment] Starting with params:', params);
         const { title, courseName, dueDate, description } = params;
-        
+
         if (!title) {
             console.log('[handleCreateAssignment] Missing title');
             return {
@@ -76,7 +77,7 @@ async function handleCreateAssignment(userId, params) {
                 message: '❌ Please provide an assignment title.'
             };
         }
-        
+
         if (!dueDate) {
             console.log('[handleCreateAssignment] Missing dueDate');
             return {
@@ -85,12 +86,12 @@ async function handleCreateAssignment(userId, params) {
                 message: '❌ Please provide a due date for the assignment.'
             };
         }
-        
+
         // Parse the due date
         console.log('[handleCreateAssignment] Parsing date:', dueDate);
         const parsedDate = parseDate(dueDate);
         console.log('[handleCreateAssignment] Parsed date result:', parsedDate);
-        
+
         if (!parsedDate) {
             console.log('[handleCreateAssignment] Date parsing failed');
             return {
@@ -99,23 +100,23 @@ async function handleCreateAssignment(userId, params) {
                 message: `❌ Could not understand the date "${dueDate}". Please use formats like "tomorrow", "next Friday", or "YYYY-MM-DD".`
             };
         }
-        
+
         // Find the course
         let courseId = null;
         let courseAutoCreated = false;
-        
+
         if (courseName) {
             console.log('[handleCreateAssignment] Looking for course:', courseName);
             const courses = await findCourseByName({ userId, courseName });
             console.log('[handleCreateAssignment] Found courses:', courses);
-            
+
             if (courses.length > 0) {
                 courseId = courses[0].id;
             } else {
                 // Course not found - auto-create it
                 console.log('[handleCreateAssignment] Course not found, auto-creating:', courseName);
                 const createResult = await createCourse({ userId, courseName });
-                
+
                 if (createResult.success) {
                     courseId = createResult.courseId;
                     courseAutoCreated = true;
@@ -132,13 +133,13 @@ async function handleCreateAssignment(userId, params) {
         } else {
             // No course specified - ask user to specify
             console.log('[handleCreateAssignment] No course specified, prompting user');
-            
+
             // Get user's courses to show as options
             const [courses] = await db.execute(
-                'SELECT name FROM courses WHERE user_id = ? ORDER BY created_at DESC LIMIT 5', 
+                'SELECT name FROM courses WHERE user_id = ? ORDER BY created_at DESC LIMIT 5',
                 [userId]
             );
-            
+
             if (courses.length === 0) {
                 return {
                     type: 'action',
@@ -146,7 +147,7 @@ async function handleCreateAssignment(userId, params) {
                     message: '❌ You don\'t have any courses yet.\n\n📚 Please create a course first:\n1. Go to the Courses page\n2. Click "Add Course"\n3. Enter the course name and details\n4. Then try adding the assignment again'
                 };
             }
-            
+
             // Show available courses and ask user to specify
             const courseList = courses.map(c => `• ${c.name}`).join('\n');
             return {
@@ -155,7 +156,7 @@ async function handleCreateAssignment(userId, params) {
                 message: `📚 Which course should I add "${title}" to?\n\nYour courses:\n${courseList}\n\n💡 Please specify the course name, for example:\n"Add ${title} to History on ${dueDate}"`
             };
         }
-        
+
         // Create the assignment
         console.log('[handleCreateAssignment] Creating assignment with courseId:', courseId);
         const result = await createAssignment({
@@ -165,14 +166,14 @@ async function handleCreateAssignment(userId, params) {
             description: description || '',
             dueDate: parsedDate
         });
-        
+
         console.log('[handleCreateAssignment] Create result:', result);
-        
+
         if (result.success) {
-            const successMessage = courseAutoCreated 
+            const successMessage = courseAutoCreated
                 ? `✅ ${result.message}\n📚 Course "${courseName}" was created automatically\n📅 Due: ${parsedDate}`
                 : `✅ ${result.message}\n📅 Due: ${parsedDate}`;
-                
+
             return {
                 type: 'action',
                 success: true,
@@ -201,7 +202,7 @@ async function handleCreateAssignment(userId, params) {
 async function handleDeleteAssignment(userId, params) {
     try {
         const { title } = params;
-        
+
         if (!title) {
             return {
                 type: 'action',
@@ -209,10 +210,10 @@ async function handleDeleteAssignment(userId, params) {
                 message: '❌ Please specify which assignment to delete.'
             };
         }
-        
+
         // Find matching assignments
         const assignments = await findAssignmentByTitle({ userId, title });
-        
+
         if (assignments.length === 0) {
             return {
                 type: 'action',
@@ -220,25 +221,25 @@ async function handleDeleteAssignment(userId, params) {
                 message: `❌ Could not find an assignment matching "${title}".`
             };
         }
-        
+
         if (assignments.length > 1) {
-            const list = assignments.map((a, i) => 
+            const list = assignments.map((a, i) =>
                 `${i + 1}. **${a.title}** (${a.course_name}) - Due: ${a.due_date}`
             ).join('\n');
-            
+
             return {
                 type: 'action',
                 success: false,
                 message: `❓ Found multiple assignments matching "${title}":\n\n${list}\n\nPlease be more specific.`
             };
         }
-        
+
         // Delete the assignment
-        const result = await deleteAssignmentById({ 
-            userId, 
-            assignmentId: assignments[0].id 
+        const result = await deleteAssignmentById({
+            userId,
+            assignmentId: assignments[0].id
         });
-        
+
         if (result.success) {
             return {
                 type: 'action',
@@ -281,7 +282,7 @@ async function handleQuery(res, userId, message) {
     const currentSystemTime = dateFormatter.format(new Date());
     const systemPrompt = SYSTEM_PROMPT_TEMPLATE(contextInfo, currentSystemTime);
 
-    await streamAIResponse(res, systemPrompt, message);
+    await streamChatWithLlama(res, systemPrompt, message);
 }
 
 const handleChat = async (req, res) => {
@@ -293,12 +294,12 @@ const handleChat = async (req, res) => {
         }
 
         const targetUserId = userId || "1";
-        
+
         // Detect intent
         console.log('[ChatController] Detecting intent for:', message);
         const { intent, params } = await detectIntent(message);
         console.log('[ChatController] Detected intent:', intent, 'Params:', params);
-        
+
         // Route based on intent
         if (intent === 'CREATE_ASSIGNMENT') {
             const result = await handleCreateAssignment(targetUserId, params);
@@ -311,7 +312,7 @@ const handleChat = async (req, res) => {
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
-            
+
             await handleQuery(res, targetUserId, message);
         }
 
@@ -326,5 +327,6 @@ const handleChat = async (req, res) => {
         }
     }
 };
+
 
 module.exports = { handleChat };
