@@ -1,6 +1,5 @@
 const db = require('../config/connectDB');
 const { detectIntent, parseDate } = require('../services/IntentService');
-const { streamChatResponse } = require('../services/geminiService');
 const { streamChatWithLlama } = require('../services/llamaService');
 const {
     createAssignment,

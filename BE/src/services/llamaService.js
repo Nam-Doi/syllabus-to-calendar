@@ -1,28 +1,26 @@
 const Groq = require("groq-sdk");
 require("dotenv").config();
 
-
-console.log("DEBUG GROQ KEY:", process.env.GROQ_API_KEY ? "Đã có Key ✅" : "Thiếu Key ❌");
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 async function detectIntentWithLlama(userMessage) {
   const systemPrompt = `
-    You are an intent classifier JSON generator.
-    Intents: CREATE_ASSIGNMENT, DELETE_ASSIGNMENT, QUERY.
+    You are an intent classifier. Analyze the user's message regarding a student scheduler.
     
-    Output JSON format only:
+    INTENTS:
+    1. CREATE_ASSIGNMENT: User wants to add/create a task/homework/exam.
+    2. DELETE_ASSIGNMENT: User wants to remove/delete a task.
+    3. QUERY: User asks about schedule, time, or general chat.
+
+    OUTPUT JSON ONLY:
     {
-      "intent": "ENUM",
+      "intent": "CREATE_ASSIGNMENT" | "DELETE_ASSIGNMENT" | "QUERY",
       "params": {
-        "title": "string or null",
-        "courseName": "string or null",
-        "dueDate": "string or null"
+        "title": "string (extracted task name) or null",
+        "courseName": "string (extracted subject) or null",
+        "dueDate": "string (e.g., 'tomorrow', 'next friday', '2025-10-10') or null"
       }
     }
-    
-    Examples:
-    User: "Add homework to Math" -> {"intent": "CREATE_ASSIGNMENT", "params": {"title": "homework", "courseName": "Math", "dueDate": null}}
-    User: "Delete Math hw" -> {"intent": "DELETE_ASSIGNMENT", "params": {"title": "Math hw"}}
   `;
 
   try {
@@ -31,57 +29,51 @@ async function detectIntentWithLlama(userMessage) {
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
-      // UPDATE THIS LINE: Use the currently supported versatile model
+      // Llama 3 70B Versatile rất tốt cho việc hiểu ngữ nghĩa phức tạp
       model: "llama-3.3-70b-versatile",
       temperature: 0,
       stream: false,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" } // Bắt buộc trả về JSON
     });
 
-    // This returns an OBJECT, not a string
-    return JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
+    const content = chatCompletion.choices[0]?.message?.content;
+    if (!content) return { intent: "QUERY", params: {} };
+
+    return JSON.parse(content);
   } catch (error) {
-    console.error("Llama/Groq Error:", error);
+    console.error("Llama Intent Error:", error);
+    // Fallback an toàn
     return { intent: "QUERY", params: {} };
   }
 }
 
 async function streamChatWithLlama(res, systemPrompt, userMessage) {
   try {
-    console.log("[Llama] Starting chat stream...");
-
     const stream = await groq.chat.completions.create({
-      // Model 8B chạy siêu nhanh cho chat, hoặc dùng 70B nếu muốn thông minh hơn
-      model: "llama-3.1-8b-instant",
+      model: "llama-3.1-8b-instant", // Nhanh và rẻ cho chat thường
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
       ],
-      temperature: 0.5, // Hơi sáng tạo một chút cho tự nhiên
+      temperature: 0.3,
       max_tokens: 1024,
-      stream: true, // Bật chế độ stream
+      stream: true,
     });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || "";
       if (content) {
-        // Gửi về Frontend đúng định dạng SSE
         res.write(`data: ${JSON.stringify({ content })}\n\n`);
       }
     }
 
     res.write("data: [DONE]\n\n");
     res.end();
-    console.log("[Llama] Chat finished successfully");
 
   } catch (error) {
-    console.error("Llama Chat Error:", error);
-    if (!res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: "Lỗi Groq: " + error.message })}\n\n`);
-      res.end();
-    } else {
-      res.end();
-    }
+    console.error("Llama Stream Error:", error);
+    res.write(`data: ${JSON.stringify({ error: "Llama Error" })}\n\n`);
+    res.end();
   }
 }
 

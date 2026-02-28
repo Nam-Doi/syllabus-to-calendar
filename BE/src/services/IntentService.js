@@ -5,73 +5,22 @@ const { detectIntentWithLlama } = require("../services/llamaService");
  * Returns: { intent: 'QUERY' | 'CREATE_ASSIGNMENT' | 'DELETE_ASSIGNMENT', params: {...} }
  */
 async function detectIntent(message) {
-    //     const systemPrompt = `You are an intent classifier for a student assignment management system.
-    // Analyze the user's message and extract:
-    // 1. Intent: CREATE_ASSIGNMENT, DELETE_ASSIGNMENT, or QUERY
-    // 2. For CREATE_ASSIGNMENT: extract title, courseName (if mentioned), dueDate (if mentioned)
-    // 3. For DELETE_ASSIGNMENT: extract title (assignment to delete)
-
-    // IMPORTANT RULES FOR COURSE NAME EXTRACTION:
-    // - Look for patterns like "Add [title] to [course]" or "[course] assignment"
-    // - Course name can appear after "to", "for", "in", or before "assignment"
-    // - Examples:
-    //   * "Add homework to Math" → courseName: "Math"
-    //   * "Add Math assignment" → courseName: "Math"  
-    //   * "Add assignment 1" → courseName: null (no course specified)
-    //   * "Add essay for History" → courseName: "History"
-
-    // Return ONLY a JSON object with this structure:
-    // {
-    //   "intent": "CREATE_ASSIGNMENT" | "DELETE_ASSIGNMENT" | "QUERY",
-    //   "params": {
-    //     "title": "extracted title",
-    //     "courseName": "extracted course name or null",
-    //     "dueDate": "extracted date or null"
-    //   }
-    // }
-
-    // User: "Delete the Math homework assignment"
-    // Response: {"intent": "DELETE_ASSIGNMENT", "params": {"title": "Math homework"}}
-
-    // User: "Remove Data Structure assignment"
-    // Response: {"intent": "DELETE_ASSIGNMENT", "params": {"title": "Data Structure assignment"}}`;
-
     try {
-        // response is ALREADY an Object (e.g., { intent: "QUERY", ... })
+        // Llama Service giờ đã trả về JSON Object chuẩn, không cần parse string thủ công nữa
         const response = await detectIntentWithLlama(message);
 
-        // --- REPLACE THE OLD PARSING LOGIC WITH THIS ---
-        let parsed = response;
-
-        // Only parse if it somehow came back as a string (safety check)
-        if (typeof response === 'string') {
-            try {
-                let cleaned = response.trim();
-                if (cleaned.startsWith('```json')) {
-                    cleaned = cleaned.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-                } else if (cleaned.startsWith('```')) {
-                    cleaned = cleaned.replace(/```\n?/g, '');
-                }
-                parsed = JSON.parse(cleaned);
-            } catch (e) {
-                console.error("Manual parsing failed", e);
-                return { intent: 'QUERY', params: {} };
-            }
-        }
-        // -----------------------------------------------
-
-        // Validate intent
+        // Validation cơ bản
         const validIntents = ['QUERY', 'CREATE_ASSIGNMENT', 'DELETE_ASSIGNMENT'];
-        // Use optional chaining in case parsed is null
-        const intent = parsed?.intent || 'QUERY';
+        const intent = response?.intent && validIntents.includes(response.intent)
+            ? response.intent
+            : 'QUERY';
 
-        if (!validIntents.includes(intent)) {
-            return { intent: 'QUERY', params: {} };
-        }
-
-        return parsed;
+        return {
+            intent: intent,
+            params: response.params || {}
+        };
     } catch (error) {
-        console.error('Intent detection error:', error);
+        console.error('Intent detection wrapper error:', error);
         return { intent: 'QUERY', params: {} };
     }
 }
