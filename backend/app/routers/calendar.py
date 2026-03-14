@@ -72,8 +72,20 @@ async def _get_valid_google_token(sync: GoogleCalendarSync, db: AsyncSession) ->
     data = resp.json()
     new_token = data.get("access_token")
     if not new_token:
+        error_code = data.get("error", "")
         logger.error("Google token refresh failed: %s", data)
-        raise HTTPException(status_code=401, detail=f"Không thể làm mới token Google: {data.get('error_description', data.get('error', 'unknown'))}")
+        # Nếu token không còn đủ quyền hoặc bị thu hồi → xóa để buộc user kết nối lại
+        if error_code in ("invalid_grant", "insufficient_scope", "unauthorized_client"):
+            await db.delete(sync)
+            await db.commit()
+            raise HTTPException(
+                status_code=401,
+                detail="Quyền truy cập Google Calendar đã hết hạn hoặc không đủ. Vui lòng ngắt kết nối và kết nối lại Google Calendar.",
+            )
+        raise HTTPException(
+            status_code=401,
+            detail=f"Không thể làm mới token Google: {data.get('error_description', data.get('error', 'unknown'))}",
+        )
 
     sync.access_token = new_token
     expires_in = data.get("expires_in", 3600)
@@ -181,8 +193,18 @@ async def sync_events_to_google(
                 synced += 1
             else:
                 err_detail = resp.json()
+                err_msg = err_detail.get('error', {})
+                err_status = err_msg.get('status', '') if isinstance(err_msg, dict) else ''
+                err_message = err_msg.get('message', resp.status_code) if isinstance(err_msg, dict) else str(err_msg)
                 logger.warning("Failed to sync event '%s': %s %s", event.title, resp.status_code, err_detail)
-                errors.append(f"{event.title}: {err_detail.get('error', {}).get('message', resp.status_code)}")
+                # 403 FORBIDDEN với insufficient scope → buộc kết nối lại
+                if resp.status_code == 403 and 'insufficient' in err_message.lower():
+                    await db.commit()  # lưu events đã sync được
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Google Calendar không đủ quyền truy cập. Vui lòng ngắt kết nối và kết nối lại Google Calendar để cấp đầy đủ quyền.",
+                    )
+                errors.append(f"{event.title}: {err_message}")
 
     sync.last_synced_at = _now_utc()
     await db.commit()

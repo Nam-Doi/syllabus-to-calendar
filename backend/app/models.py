@@ -6,7 +6,6 @@ from sqlalchemy import Column, String, DateTime, Date, Integer, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from pgvector.sqlalchemy import Vector
 
 
 class Base(DeclarativeBase):
@@ -57,7 +56,6 @@ class Event(Base):
     start_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     end_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB)
-    vector = mapped_column(Vector(1536)) # Sử dụng thư viện pgvector
     status: Mapped[Optional[str]] = mapped_column(String) # pending/in-progress/completed
     week_number: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -131,4 +129,4 @@ class UserStats(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    user: Mapped["User"] = relationship(back_populates="stats")                                      
+    user: Mapped["User"] = relationship(back_populates="stats")

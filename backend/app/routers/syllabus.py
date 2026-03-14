@@ -44,7 +44,7 @@ async def upload_syllabus(
     file_path = UPLOAD_DIR / saved_name
     file_path.write_bytes(content)
 
-    # Create DB record với status "processing"
+    # Create DB record với status "uploaded" – chưa parse AI
     upload = SyllabusUpload(
         user_id=current_user.id,
         course_id=uuid.UUID(course_id) if course_id else None,
@@ -53,21 +53,13 @@ async def upload_syllabus(
         file_path=str(file_path),
         file_type=file.content_type,
         file_size=len(content),
-        status="processing",
+        status="uploaded",
     )
     db.add(upload)
     await db.commit()
     await db.refresh(upload)
 
-    # Chạy parse AI ở background để không block response
-    background_tasks.add_task(
-        _process_syllabus,
-        upload_id=upload.id,
-        file_path=str(file_path),
-        file_type=file.content_type,
-        user_id=current_user.id,
-    )
-
+    # KHÔNG tự động parse – user phải bấm "Trích xuất" để trigger
     return upload
 
 
@@ -90,13 +82,48 @@ async def _process_syllabus(upload_id, file_path: str, file_type: str, user_id):
             # User sẽ xem lại và xác nhận trong ReviewModal
             upload.status = "done"
             upload.parsed_data = parsed.model_dump(mode="json")
-            # course_id vẫn None cho đến khi user xác nhận
+            await db.commit()
 
         except Exception as exc:
             upload.status = "error"
             upload.error_message = f"{type(exc).__name__}: {exc}"
+            await db.commit()
 
-        await db.commit()
+
+# ── Trigger AI extraction manually
+@router.post("/{upload_id}/extract", response_model=SyllabusUploadResponse)
+async def extract_syllabus(
+    upload_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Trigger AI parsing for an uploaded syllabus (called manually by user)."""
+    result = await db.execute(
+        select(SyllabusUpload).where(
+            SyllabusUpload.id == upload_id,
+            SyllabusUpload.user_id == current_user.id,
+        )
+    )
+    upload = result.scalar_one_or_none()
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if upload.status == "processing":
+        raise HTTPException(status_code=409, detail="Already processing")
+
+    # Cập nhật status → processing
+    upload.status = "processing"
+    await db.commit()
+    await db.refresh(upload)
+
+    background_tasks.add_task(
+        _process_syllabus,
+        upload_id=upload.id,
+        file_path=upload.file_path,
+        file_type=upload.file_type,
+        user_id=current_user.id,
+    )
+    return upload
 
 
 # Get upload status
@@ -116,6 +143,29 @@ async def get_upload_status(
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     return upload
+
+
+# Serve file for preview
+@router.get("/{upload_id}/file")
+async def get_upload_file(
+    upload_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(SyllabusUpload).where(
+            SyllabusUpload.id == upload_id,
+            SyllabusUpload.user_id == current_user.id,
+        )
+    )
+    upload = result.scalar_one_or_none()
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    file_path = Path(upload.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    from fastapi.responses import FileResponse
+    return FileResponse(str(file_path), media_type=upload.file_type, filename=upload.original_name)
 
 
 # List uploads

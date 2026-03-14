@@ -1,15 +1,17 @@
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.security import get_current_user
 from app.database import get_db
-from app.models import Course, User
+from app.models import Course, Event, User
 from app.schemas import CourseCreate, CourseUpdate, CourseResponse, MessageResponse
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=list[CourseResponse])
@@ -90,4 +92,4 @@ async def delete_course(
 
     await db.delete(course)
     await db.commit()
-    return MessageResponse(message="Course deleted")
+    return MessageResponse(message="Course deleted")

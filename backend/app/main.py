@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, courses, events, syllabus, calendar
+from app.routers import auth, courses, events, syllabus, calendar, chat
 from . database import get_db, engine
 
 
@@ -37,6 +37,7 @@ app.include_router(courses.router,  prefix=PREFIX)
 app.include_router(events.router,   prefix=PREFIX)
 app.include_router(syllabus.router, prefix=PREFIX)
 app.include_router(calendar.router, prefix=PREFIX)
+app.include_router(chat.router,     prefix=PREFIX)
 
 
 @app.get("/")

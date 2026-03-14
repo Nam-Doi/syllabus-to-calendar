@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     # OpenAI
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "models/gemini-2.5-flash"
 
     # App
     DEBUG: bool = False
