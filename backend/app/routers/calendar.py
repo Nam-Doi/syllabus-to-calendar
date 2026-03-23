@@ -197,12 +197,23 @@ async def sync_events_to_google(
                 err_status = err_msg.get('status', '') if isinstance(err_msg, dict) else ''
                 err_message = err_msg.get('message', resp.status_code) if isinstance(err_msg, dict) else str(err_msg)
                 logger.warning("Failed to sync event '%s': %s %s", event.title, resp.status_code, err_detail)
-                # 403 FORBIDDEN với insufficient scope → buộc kết nối lại
-                if resp.status_code == 403 and 'insufficient' in err_message.lower():
-                    await db.commit()  # lưu events đã sync được
+                # 403 FORBIDDEN với insufficient scope → xóa sync record, buộc user kết nối lại
+                if resp.status_code == 403 and (
+                    'insufficient' in err_message.lower()
+                    or err_status in ('PERMISSION_DENIED',)
+                ):
+                    await db.commit()  # lưu events đã sync được trước đó
+                    # Xóa record GoogleCalendarSync để buộc user reconnect với đủ quyền
+                    await db.delete(sync)
+                    await db.commit()
+                    logger.warning("Deleted GoogleCalendarSync for user %s due to insufficient scope", current_user.id)
                     raise HTTPException(
                         status_code=403,
-                        detail="Google Calendar không đủ quyền truy cập. Vui lòng ngắt kết nối và kết nối lại Google Calendar để cấp đầy đủ quyền.",
+                        detail=(
+                            "Google Calendar không đủ quyền ghi lịch (insufficientPermissions). "
+                            "Kết nối Google Calendar đã bị xóa. "
+                            "Vui lòng vào trang Calendar và bấm 'Kết nối Google Calendar' để cấp lại đầy đủ quyền."
+                        ),
                     )
                 errors.append(f"{event.title}: {err_message}")
 

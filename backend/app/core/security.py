@@ -23,7 +23,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-# -- jwt helpers--
+# jwt helper
 def create_access_token(subject: str | UUID, expires_delta: Optional[timedelta] = None) -> str:
     expire = datetime.utcnow() + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

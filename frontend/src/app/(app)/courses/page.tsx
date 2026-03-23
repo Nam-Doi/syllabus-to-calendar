@@ -4,182 +4,18 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import { syllabusService, courseService, eventService } from "@/lib/services";
-import type { SyllabusUpload, Course, CourseCreate, CalEvent } from "@/types";
+import { syllabusService, courseService } from "@/lib/services";
+import type { SyllabusUpload, Course } from "@/types";
 import ReviewModal from "./ReviewModal";
 import { CourseCard } from "@/components/course/CourseCard";
+import { CourseModal } from "@/components/course/CourseModal";
 import { cn } from "@/lib/utils";
 
 type View = "list" | "upload";
 
-// ─── Reusable confirm dialog ─────────────────────────────────────────────────
-function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 14, padding: 28, maxWidth: 380, width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-        <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>🗑️</div>
-        <div style={{ fontSize: 15, fontWeight: 600, textAlign: "center", marginBottom: 8 }}>Xác nhận xóa</div>
-        <div style={{ fontSize: 14, color: "#6b7280", textAlign: "center", marginBottom: 24 }}>{message}</div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: "9px", border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", fontSize: 14, cursor: "pointer" }}>Hủy</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: "9px", border: "none", borderRadius: 8, background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Xóa</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Course detail / edit modal ───────────────────────────────────────────────
-function CourseModal({ course, onClose, onSaved, onDeleted }: {
-  course: Course;
-  onClose: () => void;
-  onSaved: (c: Course) => void;
-  onDeleted: (id: string) => void;
-}) {
-  const [form, setForm] = useState<CourseCreate>({
-    name: course.name, code: course.code || "", term: course.term || "",
-    instructor: course.instructor || "",
-    start_date: course.start_date ? course.start_date.split("T")[0] : "",
-    end_date: course.end_date ? course.end_date.split("T")[0] : "",
-    color: course.color, icon: course.icon,
-  });
-  const [events, setEvents] = useState<CalEvent[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  useEffect(() => {
-    eventService.list({ course_id: course.id }).then(setEvents).catch(() => {});
-  }, [course.id]);
-
-  const handleSave = async () => {
-    setSaving(true); setError(null);
-    try {
-      const payload: CourseCreate = {
-        ...form,
-        start_date: form.start_date || undefined,
-        end_date: form.end_date || undefined,
-        code: form.code || undefined,
-        term: form.term || undefined,
-        instructor: form.instructor || undefined,
-      };
-      const saved = await courseService.update(course.id, payload);
-      onSaved(saved);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Không thể lưu khóa học";
-      setError(typeof msg === "string" ? msg : "Lỗi khi lưu");
-    } finally { setSaving(false); }
-  };
-
-  const COLORS = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2"];
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 760, maxHeight: "90vh", overflowY: "auto", padding: 32, position: "relative" }}>
-        <button onClick={onClose} style={{ position: "absolute", right: 20, top: 20, background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#9ca3af" }}>✕</button>
-
-        <div style={{ borderTop: `4px solid ${form.color}`, borderRadius: 4, marginBottom: 20, marginTop: -4 }} />
-        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Chi tiết khóa học</div>
-        <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>Xem và chỉnh sửa thông tin khóa học</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
-          {/* Left: form */}
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: "#374151" }}>Thông tin khóa học</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-              {([["Tên môn học", "name"], ["Mã môn", "code"], ["Học kỳ", "term"], ["Giảng viên", "instructor"], ["Ngày bắt đầu", "start_date"], ["Ngày kết thúc", "end_date"]] as const).map(([label, key]) => (
-                <div key={key}>
-                  <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 5, fontWeight: 500 }}>{label}</label>
-                  <input
-                    type={key.includes("date") ? "date" : "text"}
-                    value={(form as unknown as Record<string, string>)[key] || ""}
-                    onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-                    style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 14, boxSizing: "border-box" as const }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6 }}>Màu sắc</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                {COLORS.map(c => (
-                  <div key={c} onClick={() => setForm(prev => ({ ...prev, color: c }))}
-                    style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: form.color === c ? "3px solid #111" : "3px solid transparent" }} />
-                ))}
-              </div>
-            </div>
-
-            {error && (
-              <div style={{ padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: 13, color: "#dc2626", marginBottom: 10 }}>
-                ❌ {error}
-              </div>
-            )}
-          </div>
-
-          {/* Right: events list */}
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: "#374151" }}>
-              Lịch học ({events.length} sự kiện)
-            </div>
-            {events.length === 0 ? (
-              <div style={{ padding: "30px 16px", textAlign: "center", color: "#9ca3af", fontSize: 14, background: "#f9fafb", borderRadius: 10 }}>
-                Chưa có sự kiện nào
-              </div>
-            ) : (
-              <div style={{ maxHeight: 340, overflowY: "auto" }}>
-                {events.map(ev => (
-                  <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", border: "1px solid #f3f4f6", borderRadius: 10, marginBottom: 6, background: "#fafafa" }}>
-                    <span style={{ fontSize: 16 }}>{ev.label === "exam" ? "🎓" : ev.label === "assignment" ? "📝" : "📖"}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
-                      {ev.start_time && (
-                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                          {new Date(ev.start_time).toLocaleDateString("vi-VN")}
-                        </div>
-                      )}
-                    </div>
-                    <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 99,
-                      background: ev.status === "completed" ? "#dcfce7" : ev.label === "exam" ? "#fee2e2" : "#eff6ff",
-                      color: ev.status === "completed" ? "#16a34a" : ev.label === "exam" ? "#dc2626" : "#2563eb",
-                      fontWeight: 500 }}>
-                      {ev.label || "lecture"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 20 }}>
-          <button onClick={() => setConfirmDelete(true)}
-            style={{ padding: "9px 18px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-            🗑 Xóa khóa học
-          </button>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={onClose} style={{ padding: "9px 22px", border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", fontSize: 14, cursor: "pointer" }}>Hủy</button>
-            <button onClick={handleSave} disabled={saving}
-              style={{ padding: "9px 22px", background: saving ? "#6b7280" : "#111", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}>
-              {saving ? "Đang lưu..." : "Lưu thay đổi"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {confirmDelete && (
-        <ConfirmDialog
-          message={`Bạn có chắc muốn xóa "${course.name}"? Tất cả sự kiện liên quan cũng sẽ bị xóa.`}
-          onConfirm={async () => { await courseService.delete(course.id); onDeleted(course.id); }}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
-    </div>
-  );
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function CoursesPage() {
+  
   const [view, setView] = useState<View>("list");
   const [dragging, setDragging] = useState(false);
   const [uploads, setUploads] = useState<SyllabusUpload[]>([]);
@@ -314,7 +150,7 @@ export default function CoursesPage() {
             </div>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-3">
             {courses.map((course) => (
               <CourseCard key={course.id} course={course} onEdit={c => setSelectedCourse(c)} onDeleted={id => setCourses(prev => prev.filter(c => c.id !== id))} />
             ))}
@@ -333,7 +169,7 @@ export default function CoursesPage() {
     );
   }
 
-  // ── UPLOAD VIEW ─────────────────────────────────────────────────────────────
+  // ── UPLOAD VIEW (Bản gốc giữ nguyên) ────────────────────────────────────────
   return (
     <div className="p-6 max-w-6xl mx-auto min-h-screen">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -457,7 +293,7 @@ export default function CoursesPage() {
       {/* Done/Error */}
       {done.length > 0 && (
         <Card className="p-5 mb-5">
-          <div className="font-semibold text-sm mb-3">Kết quả xử lý</div>
+          <div className="font-semibold text-sm mb-3">Result</div>
           <div className="space-y-2">
             {done.map(u => (
               <div key={u.id} onClick={() => u.status === "done" && setSelectedUpload(u)}
@@ -471,7 +307,7 @@ export default function CoursesPage() {
                     </div>
                   </div>
                 </div>
-                {u.status === "done" && <span className="text-xs font-medium text-gray-600">Xem chi tiết →</span>}
+                {u.status === "done" && <span className="text-xs font-medium text-gray-600">Views</span>}
                 {u.status === "error" && (
                   <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); syllabusService.delete(u.id).then(() => setUploads(prev => prev.filter(x => x.id !== u.id))); }} className="text-red-600 hover:text-red-700 hover:bg-red-100">✕ Xóa</Button>
                 )}
@@ -526,8 +362,15 @@ export default function CoursesPage() {
       )}
 
       {selectedUpload && (
-        <ReviewModal upload={selectedUpload} onClose={() => setSelectedUpload(null)}
-          onCourseCreated={(c) => handleCourseCreated(c, selectedUpload.id)} />
+        <ReviewModal
+          upload={selectedUpload}
+          onClose={() => setSelectedUpload(null)}
+          onCourseCreated={(c) => handleCourseCreated(c, selectedUpload.id)}
+          onDiscarded={(id) => {
+            setUploads(prev => prev.filter(u => u.id !== id));
+            setSelectedUpload(null);
+          }}
+        />
       )}
     </div>
   );

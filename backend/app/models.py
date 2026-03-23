@@ -108,7 +108,7 @@ class CalendarEvent(Base):
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     
-    # Phân loại ( 'primary', 'holiday', 'course_deadline')
+    # type ( 'primary', 'holiday', 'course_deadline')
     event_type: Mapped[Optional[str]] = mapped_column(String)
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -129,4 +129,4 @@ class UserStats(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    user: Mapped["User"] = relationship(back_populates="stats")
+    user: Mapped["User"] = relationship(back_populates="stats")

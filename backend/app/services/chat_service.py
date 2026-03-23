@@ -27,13 +27,11 @@ from app.models import Course, Event
 logger = logging.getLogger(__name__)
 
 
-# ─── Gemini Client ────────────────────────────────────────────────────────────
-
 def _gemini_client() -> genai.Client:
     return genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
-# ─── Function Declarations for Gemini ─────────────────────────────────────────
+# Function Declarations for Gemini
 
 FUNCTION_DECLARATIONS = [
     gtypes.FunctionDeclaration(

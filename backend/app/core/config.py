@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str
     FRONTEND_URL: str = "http://localhost:3000"
 
-    # OpenAI
     GEMINI_API_KEY: str
     GEMINI_MODEL: str = "models/gemini-2.5-flash"
 

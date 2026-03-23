@@ -42,4 +42,4 @@ app.include_router(chat.router,     prefix=PREFIX)
 
 @app.get("/")
 async def root():
-    return {"status": "ok"}
+    return {"status": "hello world!"}
