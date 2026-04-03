@@ -1,15 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from urllib.parse import quote_plus
-import ssl
+from urllib.parse import quote_plus, urlparse, urlencode, parse_qs, urlunparse
 from app.core.config import settings
+import ssl
 
 def _build_database_url() -> str:
     if settings.DATABASE_URL:
         url = settings.DATABASE_URL
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        # Xóa sslmode khỏi URL vì asyncpg không hỗ trợ
-        url = url.replace("?sslmode=require", "").replace("&sslmode=require", "")
+        # Xóa toàn bộ query string (chứa sslmode)
+        if "?" in url:
+            url = url.split("?")[0]
         return url
     password = quote_plus(settings.DATABASE_PASSWORD)
     return (
