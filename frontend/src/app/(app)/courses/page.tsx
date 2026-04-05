@@ -65,8 +65,8 @@ export default function CoursesPage() {
       } catch (err: unknown) {
         URL.revokeObjectURL(blobUrl);
         const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-          (err instanceof Error ? err.message : `Không thể upload "${file.name}"`);
-        setUploadError(typeof msg === "string" ? msg : `Upload thất bại: ${file.name}`);
+          (err instanceof Error ? err.message : `Cannot upload "${file.name}"`);
+        setUploadError(typeof msg === "string" ? msg : `Upload failed: ${file.name}`);
       }
     }
     setUploading(false);
@@ -85,8 +85,8 @@ export default function CoursesPage() {
       pollCleanups.current.set(upload.id, stop);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        (err instanceof Error ? err.message : "Không thể trích xuất");
-      setUploadError(typeof msg === "string" ? msg : "Trích xuất thất bại");
+        (err instanceof Error ? err.message : "Cannot extract");
+      setUploadError(typeof msg === "string" ? msg : "Extraction failed");
     } finally {
       setExtractingIds(prev => { const s = new Set(prev); s.delete(upload.id); return s; });
     }
@@ -241,7 +241,7 @@ export default function CoursesPage() {
       {/* Uploaded (pending extract) */}
       {uploaded.length > 0 && (
         <Card className="p-5 mb-5">
-          <div className="font-semibold text-sm mb-3">Chờ trích xuất ({uploaded.length})</div>
+          <div className="font-semibold text-sm mb-3">Waiting for extraction ({uploaded.length})</div>
           <div className="space-y-2">
             {uploaded.map(u => {
               const isExtracting = extractingIds.has(u.id);
@@ -268,9 +268,9 @@ export default function CoursesPage() {
       {processing.length > 0 && (
         <Card className="p-5 mb-5">
           <div className="flex justify-between items-center mb-3">
-            <div className="font-semibold text-sm">Đang xử lý ({processing.length})</div>
+            <div className="font-semibold text-sm">Processing ({processing.length})</div>
             <div className="text-xs text-blue-600 flex items-center gap-1">
-              <span className="animate-spin inline-block">⟳</span> AI đang phân tích...
+              <span className="animate-spin inline-block">⟳</span> AI is analyzing...
             </div>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5 mb-3">
@@ -303,7 +303,7 @@ export default function CoursesPage() {
                   <div>
                     <div className="text-sm font-semibold text-gray-900">{u.original_name}</div>
                     <div className={cn("text-xs", u.status === "done" ? "text-green-700" : "text-red-600")}>
-                      {u.status === "done" ? "Trích xuất thành công – nhấn để xem và tạo khóa học" : u.error_message || "Xử lý thất bại"}
+                      {u.status === "done" ? "Extracted successfully – click to view and create course" : u.error_message || "Processing failed"}
                     </div>
                   </div>
                 </div>
@@ -353,7 +353,7 @@ export default function CoursesPage() {
               return (
                 <div className="text-center text-gray-400">
                   <div className="text-4xl mb-2">📁</div>
-                  <div className="text-sm">Không thể hiển thị xem trước</div>
+                  <div className="text-sm">No preview available</div>
                 </div>
               );
             })()}

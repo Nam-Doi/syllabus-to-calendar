@@ -4,17 +4,18 @@ import { eventService } from "@/lib/services";
 import type { CalEvent } from "@/types";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LABEL_COLOR, LABEL_TEXT } from "@/constants/event-labels";
+import { Card } from "@/components/ui/card";
+import { Loader2, CheckCircle2, ListTodo, X } from "lucide-react";
 
 function groupByWeekday(events: CalEvent[]) {
   const days: Record<string, CalEvent[]> = {};
   events.forEach(ev => {
-    if (!ev.start_time) { (days["Chưa có ngày"] ||= []).push(ev); return; }
-    const d = new Date(ev.start_time).toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "numeric" });
+    if (!ev.start_time) { (days["No date"] ||= []).push(ev); return; }
+    const d = new Date(ev.start_time).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "numeric" });
     (days[d] ||= []).push(ev);
   });
   return days;
 }
-
 
 export default function TasksPage() {
   const [events, setEvents] = useState<CalEvent[]>([]);
@@ -36,104 +37,103 @@ export default function TasksPage() {
     setConfirmId(null);
   };
 
-  if (loading) return <div style={{ padding: 40, color: "#5f6368", fontSize: 14, textAlign: "center" }}>Đang tải...</div>;
-
   const grouped = groupByWeekday(events);
   const toDelete = confirmId ? events.find(e => e.id === confirmId) : null;
 
   return (
-    <div style={{ 
-      width: "100%", 
-      height: "100%", 
-      display: "flex", 
-      flexDirection: "column", 
-      fontFamily: "Roboto, Arial, sans-serif", 
-      background: "#fff",
-      boxSizing: "border-box"
-    }}>
-      {/* Header cố định */}
-      <div style={{ padding: "24px 32px", borderBottom: "1px solid #f1f3f4", flexShrink: 0 }}>
-        <h1 style={{ margin: 0, fontSize: 22, color: "#202124", fontWeight: 400 }}>Nhiệm vụ của bạn</h1>
+    <div className="p-6 h-full flex flex-col gap-3 bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <ListTodo className="w-5 h-5 text-gray-700" />
+          <h1 className="text-xl font-semibold text-gray-900">Your tasks</h1>
+        </div>
       </div>
 
-      {/* Khu vực danh sách cuộn */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 32px 32px", boxSizing: "border-box" }}>
-        {events.length === 0 ? (
-          <div style={{ padding: 48, textAlign: "center", color: "#5f6368", fontSize: 14 }}>
-            Chưa có nhiệm vụ nào.
-          </div>
-        ) : Object.entries(grouped).map(([day, items]) => (
-          <div key={day} style={{ marginTop: 24 }}>
-            <div style={{ padding: "8px 0", fontSize: 14, fontWeight: 500, color: "#202124", display: "flex", alignItems: "center", gap: 8 }}>
-              {day}
-              <span style={{ fontSize: 12, color: "#5f6368", fontWeight: 400 }}>({items.length})</span>
+      {/* Content */}
+      <div className="flex flex-1 gap-6 min-h-0">
+        <Card className="p-4 bg-white border border-gray-200 flex-1 min-w-0 shadow-sm relative overflow-hidden flex flex-col">
+          {loading && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </div>
             </div>
-            
-            <div style={{ borderTop: "1px solid #f1f3f4" }}>
-              {items.map(ev => {
-                const isOverdue = ev.start_time && new Date(ev.start_time) < new Date() && ev.status !== "completed";
-                const isDone = ev.status === "completed";
-                const labelColor = LABEL_COLOR[ev.label || "lecture"] || "#5f6368";
-                const labelText = LABEL_TEXT[ev.label || "lecture"] || "Nhiệm vụ";
+          )}
 
-                return (
-                  <div key={ev.id} style={{ 
-                    display: "flex", alignItems: "flex-start", padding: "12px 0", 
-                    borderBottom: "1px solid #f1f3f4", background: "#fff", opacity: isDone ? 0.6 : 1,
-                    boxSizing: "border-box"
-                  }}>
-                    {/* Checkbox */}
-                    <div style={{ paddingTop: 2, marginRight: 16 }}>
-                      <div onClick={() => !isDone && markDone(ev.id)}
-                        style={{ 
-                          width: 18, height: 18, border: `2px solid ${isDone ? "#1a73e8" : "#5f6368"}`, 
-                          borderRadius: "50%", cursor: isDone ? "default" : "pointer", 
-                          background: isDone ? "#1a73e8" : "#fff", 
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          boxSizing: "border-box"
-                        }}>
-                        {isDone && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ 
-                        fontSize: 14, color: "#202124", fontWeight: 400, marginBottom: 4,
-                        textDecoration: isDone ? "line-through" : "none",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-                      }}>
-                        {ev.title}
-                      </div>
-                      
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "#5f6368", flexWrap: "wrap" }}>
-                        <span style={{ color: labelColor, fontWeight: 500 }}>{labelText}</span>
-                        {ev.course_id && <span>• Khóa học đính kèm</span>}
-                        {ev.start_time && (
-                          <>
-                            <span>• {new Date(ev.start_time).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
-                            {isOverdue && <span style={{ color: "#d93025", fontWeight: 500 }}>Quá hạn</span>}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ marginLeft: 16 }}>
-                      <button 
-                        onClick={() => setConfirmId(ev.id)} 
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", fontSize: 18, padding: "4px 8px", borderRadius: 4 }}
-                        title="Xóa nhiệm vụ"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+          {!loading && events.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-500 gap-2 z-10 bg-white/90">
+              <CheckCircle2 className="w-8 h-8 text-gray-300" />
+              <p className="font-medium">No tasks found</p>
+              <p className="text-sm">You have completed all tasks or have not added any new tasks.</p>
             </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto pr-2">
+            {Object.entries(grouped).map(([day, items]) => (
+              <div key={day} className="mt-6 first:mt-2">
+                <div className="py-2 text-sm font-medium text-gray-900 flex items-center gap-2">
+                  {day}
+                  <span className="text-xs text-gray-500 font-normal">({items.length})</span>
+                </div>
+
+                <div className="border-t border-gray-100">
+                  {items.map(ev => {
+                    const isOverdue = ev.start_time && new Date(ev.start_time) < new Date() && ev.status !== "completed";
+                    const isDone = ev.status === "completed";
+                    const labelColor = LABEL_COLOR[ev.label || "lecture"] || "#5f6368";
+                    const labelText = LABEL_TEXT[ev.label || "lecture"] || "Nhiệm vụ";
+
+                    return (
+                      <div key={ev.id} className={`group flex items-start py-3 border-b border-gray-100 transition-opacity ${isDone ? 'opacity-60 bg-white' : 'opacity-100 hover:bg-gray-50 bg-white'}`}>
+                        {/* Checkbox */}
+                        <div className="pt-0.5 mr-4 ml-2">
+                          <button
+                            onClick={() => !isDone && markDone(ev.id)}
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isDone ? 'bg-blue-600 border-blue-600' : 'border-gray-400 bg-white hover:border-blue-500 cursor-pointer'
+                              } ${isDone ? 'cursor-default' : ''}`}
+                          >
+                            {isDone && <span className="text-white text-xs leading-none">✓</span>}
+                          </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm text-gray-900 font-medium mb-1 truncate ${isDone ? 'line-through text-gray-500' : ''}`}>
+                            {ev.title}
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                            <span style={{ color: labelColor }} className="font-medium">{labelText}</span>
+                            {ev.course_id && <span>• Attached course</span>}
+                            {ev.start_time && (
+                              <>
+                                <span>• {new Date(ev.start_time).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
+                                {isOverdue && <span className="text-red-600 font-medium">Overdue</span>}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="ml-4 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => setConfirmId(ev.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Xóa nhiệm vụ"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </Card>
       </div>
 
       {confirmId && toDelete && (

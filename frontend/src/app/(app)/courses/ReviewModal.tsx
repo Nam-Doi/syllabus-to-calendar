@@ -2,25 +2,21 @@
 import { useState, useEffect } from "react";
 import { courseService, eventService, syllabusService } from "@/lib/services";
 import type { SyllabusUpload, Course, CourseCreate, EventCreate, EventLabel } from "@/types";
-import { LABEL_CONFIG, LABEL_ORDER } from "@/constants/event-labels";
+import { LABEL_CONFIG } from "@/constants/event-labels";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Loader2, Plus, X, Calendar, FileText, LayoutTemplate, ZoomIn, Info } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-/**
- * Kiểm tra xem chuỗi ngày `YYYY-MM-DD` có hợp lệ không (vd: 31/4 → invalid).
- * Trả về null nếu hợp lệ, hoặc thông báo lỗi nếu không.
- */
 function validateDate(dateStr: string | undefined, fieldName: string): string | null {
-  if (!dateStr) return null; // Optional field, skip
+  if (!dateStr) return null;
   const [y, m, d] = dateStr.split("-").map(Number);
   if (!y || !m || !d) return `${fieldName}: Định dạng ngày không hợp lệ (phải là YYYY-MM-DD).`;
   const date = new Date(y, m - 1, d);
   if (date.getFullYear() !== y || date.getMonth() + 1 !== m || date.getDate() !== d) {
-    const monthNames = ["tháng 1","tháng 2","tháng 3","tháng 4","tháng 5","tháng 6",
-      "tháng 7","tháng 8","tháng 9","tháng 10","tháng 11","tháng 12"];
     const maxDay = new Date(y, m, 0).getDate();
-    return `${fieldName}: Ngày ${d} không tồn tại trong ${monthNames[m - 1]} (chỉ có ${maxDay} ngày).`;
+    return `${fieldName}: Ngày ${d} không tồn tại trong tháng ${m} (chỉ có ${maxDay} ngày).`;
   }
   return null;
 }
@@ -32,103 +28,67 @@ interface Props {
   onDiscarded?: (uploadId: string) => void;
 }
 
-
-function EventCard({
-  ev, index, onChange, onRemove,
-}: {
-  ev: EventCreate;
-  index: number;
-  onChange: (i: number, patch: Partial<EventCreate>) => void;
-  onRemove: (i: number) => void;
-}) {
+function EventCard({ ev, index, onChange, onRemove }: { ev: EventCreate; index: number; onChange: (i: number, patch: Partial<EventCreate>) => void; onRemove: (i: number) => void; }) {
   const cfg = LABEL_CONFIG[ev.label || "lecture"] || LABEL_CONFIG.lecture;
   
   return (
-    <div style={{
-      display: "flex", gap: 12, padding: "12px 0",
-      borderBottom: "1px solid #f1f3f4", alignItems: "flex-start",
-      background: "#fff"
-    }}>
-      {/* Vạch màu chỉ thị loại sự kiện (Google style) */}
-      <div style={{ 
-        width: 4, height: 32, borderRadius: 4, 
-        background: cfg.color, flexShrink: 0, marginTop: 2 
-      }} />
-
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-        {/* Tiêu đề & Nút xóa */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+    <div className="group relative flex flex-col gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all focus-within:border-blue-300 focus-within:ring-1 focus-within:ring-blue-100">
+      <div className="absolute top-0 left-0 w-1.5 h-full rounded-l-xl opacity-90" style={{ backgroundColor: cfg.color }} />
+      <div className="flex items-start justify-between gap-4 w-full pl-3">
+        <div className="flex-1 min-w-0">
           <input
             value={ev.title}
             onChange={e => onChange(index, { title: e.target.value })}
             placeholder="Thêm tiêu đề..."
-            style={{
-              flex: 1, border: "none", background: "transparent", 
-              fontWeight: 500, fontSize: 15, color: "#3c4043", outline: "none", padding: 0
-            }}
+            className="w-full text-base font-semibold text-gray-900 bg-transparent border-none rounded focus:ring-2 focus:ring-blue-100/50 outline-none p-1 -ml-1 transition-all"
           />
-          <button
-            onClick={() => onRemove(index)}
-            title="Xóa sự kiện"
-            style={{ 
-              background: "none", border: "none", cursor: "pointer", 
-              color: "#9aa0a6", fontSize: 18, lineHeight: 1, padding: "0 4px" 
-            }}
-          >
-            &times;
-          </button>
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <div className="flex items-center gap-1.5 bg-gray-50/80 hover:bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+              <Calendar className="w-3.5 h-3.5 text-gray-500" />
+              <input
+                type="date"
+                value={ev.start_time ? ev.start_time.split("T")[0] : ""}
+                onChange={e => onChange(index, { start_time: e.target.value ? e.target.value + "T00:00:00" : undefined })}
+                className="bg-transparent text-[13px] font-medium text-gray-700 border-none outline-none cursor-pointer p-0"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-gray-50/80 hover:bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+              <input
+                type="time"
+                value={ev.start_time && ev.start_time.includes("T") ? ev.start_time.split("T")[1]?.slice(0, 5) || "" : ""}
+                onChange={e => {
+                  const datePart = ev.start_time?.split("T")[0] || new Date().toISOString().split("T")[0];
+                  onChange(index, { start_time: e.target.value ? `${datePart}T${e.target.value}:00` : `${datePart}T00:00:00` });
+                }}
+                className="bg-transparent text-[13px] font-medium text-gray-700 border-none outline-none cursor-pointer p-0"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-gray-50/80 hover:bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors pl-3 relative">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+              <select
+                value={ev.label || "lecture"}
+                onChange={e => onChange(index, { label: e.target.value as EventLabel })}
+                className="bg-transparent text-[13px] font-medium text-gray-700 border-none outline-none cursor-pointer p-0 appearance-none pr-3"
+              >
+                {Object.entries(LABEL_CONFIG).map(([v, c]) => (
+                  <option key={v} value={v} className="text-gray-900">{c.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
-
-        {/* Cụm Ngày - Giờ - Loại */}
-        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            type="date"
-            value={ev.start_time ? ev.start_time.split("T")[0] : ""}
-            onChange={e => onChange(index, { start_time: e.target.value ? e.target.value + "T00:00:00" : undefined })}
-            style={{
-              border: "none", fontSize: 13, color: "#5f6368", background: "transparent", 
-              outline: "none", cursor: "pointer", padding: 0
-            }}
-          />
-          <input
-            type="time"
-            value={ev.start_time && ev.start_time.includes("T") ? ev.start_time.split("T")[1]?.slice(0, 5) || "" : ""}
-            onChange={e => {
-              const datePart = ev.start_time?.split("T")[0] || new Date().toISOString().split("T")[0];
-              onChange(index, { start_time: e.target.value ? `${datePart}T${e.target.value}:00` : `${datePart}T00:00:00` });
-            }}
-            style={{
-              border: "none", fontSize: 13, color: "#5f6368", background: "transparent", 
-              outline: "none", cursor: "pointer", padding: 0
-            }}
-          />
-          <select
-            value={ev.label || "lecture"}
-            onChange={e => onChange(index, { label: e.target.value as EventLabel })}
-            style={{
-              border: "none", fontSize: 13, fontWeight: 500, color: cfg.color, 
-              background: "transparent", cursor: "pointer", outline: "none", padding: 0
-            }}
-          >
-            {Object.entries(LABEL_CONFIG).map(([v, c]) => (
-              <option key={v} value={v}>{c.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Mô tả (Chỉ hiện nếu người dùng muốn nhập, làm giao diện bớt rối) */}
+        <button onClick={() => onRemove(index)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 flex-shrink-0" title="Xóa sự kiện">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="pl-3">
         <textarea
           value={ev.description || ""}
           onChange={e => onChange(index, { description: e.target.value || undefined })}
-          placeholder="Thêm chi tiết (tuỳ chọn)..."
+          placeholder="Thêm mô tả chi tiết (tuỳ chọn)..."
           rows={1}
-          style={{
-            width: "100%", padding: 0, border: "none", background: "transparent",
-            fontSize: 13, color: "#70757a", resize: "none", outline: "none",
-            fontFamily: "inherit"
-          }}
+          className="w-full text-[13px] text-gray-500 bg-transparent border-none outline-none resize-none p-1 -ml-1 focus:ring-2 focus:ring-blue-100/50 rounded transition-all placeholder:text-gray-400"
           onInput={(e) => {
-            // Tự động kéo giãn textarea theo nội dung
             const target = e.target as HTMLTextAreaElement;
             target.style.height = 'auto';
             target.style.height = `${target.scrollHeight}px`;
@@ -139,76 +99,31 @@ function EventCard({
   );
 }
 
-// ── Group of events by label ──────────────────────────────────────────────────
-function EventGroup({
-  labelKey, events, globalIndices, onChangeByGlobal, onRemoveByGlobal, onAdd,
-}: {
-  labelKey: string;
-  events: { ev: EventCreate; globalIndex: number }[];
-  globalIndices: number[];
-  onChangeByGlobal: (gi: number, patch: Partial<EventCreate>) => void;
-  onRemoveByGlobal: (gi: number) => void;
-  onAdd: () => void;
-}) {
-  const [open, setOpen] = useState(true);
-  const cfg = LABEL_CONFIG[labelKey] || LABEL_CONFIG.lecture;
-
-  if (events.length === 0) return null; // Ẩn group nếu không có sự kiện
+function EventGroup({ labelKey, events, onChangeByGlobal, onRemoveByGlobal, onAdd }: { labelKey: string; events: { ev: EventCreate; globalIndex: number }[]; onChangeByGlobal: any; onRemoveByGlobal: any; onAdd: any; }) {
+  const cfg = LABEL_CONFIG[labelKey as keyof typeof LABEL_CONFIG] || LABEL_CONFIG.lecture;
+  if (events.length === 0) return null;
 
   return (
-    <div style={{ paddingBottom: 16 }}>
-      {/* Group header phẳng, tinh tế */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "8px 0", borderBottom: open ? "none" : "1px solid #f1f3f4"
-      }}>
-        <button
-          onClick={() => setOpen(o => !o)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: "none", border: "none", cursor: "pointer",
-            fontWeight: 500, fontSize: 14, color: "#3c4043", padding: 0,
-          }}
-        >
-          <span style={{ 
-            display: "inline-block", transition: "transform 0.2s", 
-            transform: open ? "rotate(90deg)" : "rotate(0deg)" 
-          }}>
-            ▶
-          </span>
-          {cfg.label}
-          <span style={{ fontSize: 13, color: "#9aa0a6", fontWeight: 400 }}>
-            ({events.length})
-          </span>
-        </button>
-        <button
-          onClick={onAdd}
-          style={{
-            fontSize: 13, color: "#1a73e8", background: "none", border: "none",
-            cursor: "pointer", fontWeight: 500, padding: 0
-          }}
-        >
-          + Thêm
+    <div className="mb-8 last:mb-2">
+      <div className="flex items-center justify-between mb-4 px-1">
+        <div className="flex items-center gap-2.5">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cfg.color }} />
+          <h3 className="text-sm font-semibold text-gray-900">{cfg.label}</h3>
+          <span className="text-[11px] text-gray-500 font-semibold px-2 py-0.5 bg-gray-100 rounded-lg">{events.length}</span>
+        </div>
+        <button onClick={onAdd} className="flex items-center gap-1.5 text-[13px] font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-2 py-1 rounded-md transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Thêm item
         </button>
       </div>
-
-      {open && (
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {events.map(({ ev, globalIndex }) => (
-            <EventCard
-              key={globalIndex}
-              ev={ev}
-              index={globalIndex}
-              onChange={(_, patch) => onChangeByGlobal(globalIndex, patch)}
-              onRemove={() => onRemoveByGlobal(globalIndex)}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-3">
+        {events.map(({ ev, globalIndex }) => (
+          <EventCard key={globalIndex} ev={ev} index={globalIndex} onChange={onChangeByGlobal} onRemove={onRemoveByGlobal} />
+        ))}
+      </div>
     </div>
   );
 }
-// ── Main modal ────────────────────────────────────────────────────────────────
+
 export default function ReviewModal({ upload, onClose, onCourseCreated, onDiscarded }: Props) {
   const parsed = upload.parsed_data;
 
@@ -226,54 +141,44 @@ export default function ReviewModal({ upload, onClose, onCourseCreated, onDiscar
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [showCourseForm, setShowCourseForm] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const existingCourseId = upload.course_id;
 
-  // Build authenticated image URL via blob
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (!token) return;
     let objectUrl: string;
     fetch(`${API_BASE}/syllabus/${upload.id}/file`, {
       headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.blob())
-      .then(blob => {
-        objectUrl = URL.createObjectURL(blob);
-        setImageUrl(objectUrl);
-      })
-      .catch(() => setImageUrl(null));
+    }).then(r => r.blob()).then(blob => {
+      objectUrl = URL.createObjectURL(blob);
+      setImageUrl(objectUrl);
+    }).catch(() => setImageUrl(null));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [upload.id]);
 
   const handleEventChange = (i: number, patch: Partial<EventCreate>) => {
     setEvents(prev => prev.map((ev, idx) => idx === i ? { ...ev, ...patch } : ev));
   };
-
   const handleRemoveEvent = (i: number) => {
     setEvents(prev => prev.filter((_, idx) => idx !== i));
   };
-
   const handleAddEvent = (label: string) => {
-    setEvents(prev => [...prev, { title: "Sự kiện mới", label: label as EventLabel, status: "pending" }]);
+    setEvents(prev => [{ title: "Sự kiện mới", label: label as EventLabel, status: "pending" }, ...prev]);
   };
 
   const handleConfirm = async () => {
     setError(null);
-
-    // ── Validate ngày course ──
     const dateErrors = [
       validateDate(form.start_date, "Ngày bắt đầu khóa học"),
       validateDate(form.end_date, "Ngày kết thúc khóa học"),
     ].filter(Boolean);
 
-    // ── Validate ngày các events ──
     events.forEach((ev, idx) => {
       if (ev.start_time) {
         const datePart = ev.start_time.split("T")[0];
-        const err = validateDate(datePart, `Sự kiện "${ev.title || `#${idx + 1}`}"`);
+        const err = validateDate(datePart, `Sự kiện "${ev.title || ('#' + (idx + 1))}"`); // fixed
         if (err) dateErrors.push(err);
       }
     });
@@ -301,19 +206,9 @@ export default function ReviewModal({ upload, onClose, onCourseCreated, onDiscar
         for (let i = 0; i < Math.min(events.length, dbEvents.length); i++) {
           const local = events[i];
           const db = dbEvents[i];
-          const needsUpdate =
-            local.title !== db.title ||
-            local.label !== db.label ||
-            local.description !== db.description ||
-            (local.start_time || null) !== (db.start_time || null);
+          const needsUpdate = local.title !== db.title || local.label !== db.label || local.description !== db.description || (local.start_time || null) !== (db.start_time || null);
           if (needsUpdate) {
-            await eventService.update(db.id, {
-              title: local.title,
-              label: local.label,
-              description: local.description,
-              start_time: local.start_time || undefined,
-              end_time: local.end_time || undefined,
-            });
+            await eventService.update(db.id, { title: local.title, label: local.label, description: local.description, start_time: local.start_time || undefined, end_time: local.end_time || undefined });
           }
         }
         for (let i = dbEvents.length; i < events.length; i++) {
@@ -325,31 +220,24 @@ export default function ReviewModal({ upload, onClose, onCourseCreated, onDiscar
       } else {
         course = await courseService.create(payload);
         for (const ev of events) {
-          try { await eventService.create({ ...ev, course_id: course.id }); } catch { /* skip */ }
+          try { await eventService.create({ ...ev, course_id: course.id }); } catch { }
         }
       }
-
       onCourseCreated(course);
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        (err instanceof Error ? err.message : "Không thể tạo khóa học. Vui lòng thử lại.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err.message || "Không thể lưu khóa học. Vui lòng thử lại.";
       setError(typeof msg === "string" ? msg : JSON.stringify(msg));
     } finally {
       setLoading(false);
     }
   };
 
-  // Group events by label
   const LABEL_ORDER = ["assignment", "exam", "lecture", "holiday"];
-  const grouped = LABEL_ORDER.reduce<Record<string, { ev: EventCreate; globalIndex: number }[]>>(
-    (acc, lbl) => { acc[lbl] = []; return acc; }, {}
-  );
+  const grouped = LABEL_ORDER.reduce<Record<string, { ev: EventCreate; globalIndex: number }[]>>((acc, lbl) => { acc[lbl] = []; return acc; }, {});
   events.forEach((ev, i) => {
     const key = ev.label && grouped[ev.label] !== undefined ? ev.label : "lecture";
     grouped[key].push({ ev, globalIndex: i });
   });
-  // Any unknown labels
   events.forEach((ev, i) => {
     if (!ev.label || !grouped[ev.label]) {
       grouped["lecture"].push({ ev, globalIndex: i });
@@ -357,211 +245,170 @@ export default function ReviewModal({ upload, onClose, onCourseCreated, onDiscar
   });
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 300,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-    }}>
-      <div style={{
-        background: "#fff", borderRadius: 16, width: "100%", maxWidth: 1060,
-        height: "90vh", display: "flex", flexDirection: "column", overflow: "hidden",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
-      }}>
-        {/* ── Header ── */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "18px 24px", borderBottom: "1px solid #f3f4f6", flexShrink: 0,
-        }}>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: "#111" }}>Xem lại &amp; Chỉnh sửa</div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-              So sánh tài liệu gốc và chỉnh sửa danh sách lịch trước khi xác nhận.
+    <div className="fixed inset-0 z-[300] bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="bg-white rounded-2xl w-full max-w-7xl h-[94vh] flex flex-col overflow-hidden shadow-2xl border border-gray-200/60 ring-1 ring-black/5">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+              <LayoutTemplate className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Xem lại dữ liệu chiết xuất</h2>
+              <p className="text-[13px] text-gray-500 mt-0.5">So sánh và chỉnh sửa dữ liệu khóa học và sự kiện trước khi lưu.</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}
-          >Đóng</button>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* ── Body: 2 columns ── */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-
-          {/* LEFT: Document viewer */}
-          <div style={{
-            width: "44%", borderRight: "1px solid #f3f4f6", display: "flex",
-            flexDirection: "column", background: "#fafafa",
-          }}>
-            {/* Image / preview */}
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        {/* Workspace */}
+        <div className="flex flex-1 overflow-hidden bg-white">
+          
+          {/* Document Preview Panel */}
+          <div className="w-5/12 border-r border-gray-100 bg-gray-50/50 flex flex-col p-6 relative hidden md:flex">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <span className="text-sm font-semibold text-gray-900 flex items-center gap-2"><FileText className="w-4 h-4 text-gray-500" /> Tài liệu gốc</span>
+            </div>
+            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex items-center justify-center relative group">
               {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={upload.original_name}
-                  onClick={() => setIsZoomed(true)} // Thêm dòng này
-                  style={{ 
-                    maxWidth: "100%", maxHeight: "100%", objectFit: "contain", 
-                    borderRadius: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.12)", 
-                    border: "1px solid #e5e7eb",
-                    cursor: "zoom-in" // Thêm dòng này
-                  }}
-                />
+                <>
+                  <img src={imageUrl} alt={upload.original_name} className="max-w-full max-h-full object-contain p-2" />
+                  <button onClick={() => setIsZoomed(true)} className="absolute top-4 right-4 p-2.5 bg-white/95 backdrop-blur border border-gray-200 text-gray-700 rounded-xl shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-gray-50 hover:-translate-y-0.5">
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                </>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#9ca3af", gap: 10 }}>
-                  <div style={{ fontSize: 13 }}>{upload.file_type?.includes("pdf") ? "PDF — xem trực tiếp chưa được hỗ trợ" : "Đang tải ảnh..."}</div>
+                <div className="flex flex-col items-center justify-center text-gray-400 gap-3">
+                  {upload.file_type?.includes("pdf") ? <FileText className="w-10 h-10 opacity-30" /> : <Loader2 className="w-6 h-6 animate-spin" />}
+                  <span className="text-[13px] font-medium">{upload.file_type?.includes("pdf") ? "Bản xem trước PDF không khả dụng" : "Đang tải tệp tin..."}</span>
                 </div>
               )}
             </div>
           </div>
-          {/* RIGHT: Editable event list */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-            {/* Course info toggle */}
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6", flexShrink: 0 }}>
-              <button
-                onClick={() => setShowCourseForm(o => !o)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: "none", border: "1px solid #e5e7eb", borderRadius: 8,
-                  padding: "6px 14px", cursor: "pointer", fontSize: 12, color: "#374151",
-                  fontWeight: 600, width: "100%", justifyContent: "space-between",
-                }}
-              >
-                <span>{form.name || "Thông tin khóa học"}</span>
-                <span style={{ fontSize: 11, color: "#6b7280" }}>{showCourseForm ? "Thu gọn" : "Chỉnh sửa"}</span>
-              </button>
-
-              {showCourseForm && (
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {(([["Tên môn học", "name", "text"], ["Giảng viên", "instructor", "text"], ["Ngày bắt đầu", "start_date", "date"], ["Ngày kết thúc", "end_date", "date"], ["Mã môn", "code", "text"], ["Học kỳ", "term", "text"]] as const)).map(([lbl, key, inputType]) => (
-                    <div key={key}>
-                      <label style={{ fontSize: 10, color: "#9ca3af", display: "block", marginBottom: 3 }}>{lbl}</label>
+          {/* Editor Panel */}
+          <div className="flex-1 flex flex-col w-full md:w-7/12 bg-white relative">
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 scroll-smooth">
+              
+              {/* Course Info Section */}
+              <div className="mb-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <Info className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Thông tin khóa học</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                  {[
+                    ["Tên môn học", "name", "text", "Ví dụ: Nhập môn Trí tuệ Nhân tạo"],
+                    ["Giảng viên", "instructor", "text", "Ví dụ: TS. Nguyễn Văn A"],
+                    ["Mã môn", "code", "text", "Ví dụ: INT3405"],
+                    ["Học kỳ", "term", "text", "Ví dụ: Học kỳ 1 2024-2025"],
+                    ["Ngày bắt đầu", "start_date", "date", ""],
+                    ["Ngày kết thúc", "end_date", "date", ""]
+                  ].map(([lbl, key, type, placeholder]) => (
+                    <div key={key} className="space-y-1.5">
+                      <label className="text-[13px] font-medium text-gray-700 ml-0.5">{lbl}</label>
                       <input
-                        type={inputType}
-                        value={(form as unknown as Record<string, string>)[key] || ""}
+                        type={type}
+                        placeholder={placeholder}
+                        value={(form as any)[key] || ""}
                         onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-                        style={{ width: "100%", padding: "6px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, boxSizing: "border-box" }}
+                        className="w-full text-sm text-gray-900 bg-gray-50 hover:bg-gray-100/80 focus:bg-white border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 outline-none transition-all placeholder:text-gray-400"
                       />
                     </div>
                   ))}
-                  <div>
-                    <label style={{ fontSize: 10, color: "#9ca3af", display: "block", marginBottom: 6 }}>Màu sắc</label>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed"].map(c => (
-                        <div key={c} onClick={() => setForm(prev => ({ ...prev, color: c }))}
-                          style={{ width: 22, height: 22, borderRadius: "50%", background: c, cursor: "pointer", border: form.color === c ? "2.5px solid #111" : "2px solid transparent" }} />
+                  <div className="space-y-2 sm:col-span-2 mt-1">
+                    <label className="text-[13px] font-medium text-gray-700 ml-0.5">Màu nền khóa học</label>
+                    <div className="flex gap-3">
+                      {["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#475569", "#0891b2", "#ec4899"].map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setForm(prev => ({ ...prev, color: c }))}
+                          className={`w-8 h-8 rounded-full shadow-sm transition-all focus:outline-none ${form.color === c ? 'ring-[3px] ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-110 border border-black/10'}`}
+                          style={{ backgroundColor: c }}
+                          type="button"
+                        />
                       ))}
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Events list */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>
-                  Danh sách lịch trình
-                  <span style={{ fontSize: 11, fontWeight: 400, color: "#9ca3af", marginLeft: 6 }}>({events.length} sự kiện)</span>
-                </div>
               </div>
 
-              {events.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af", fontSize: 13 }}>
-                  Không có sự kiện nào. Hãy thêm mới.
-                </div>
-              ) : (
-                LABEL_ORDER.map(lbl => (
-                  grouped[lbl].length > 0 || true ? (
-                    <EventGroup
-                      key={lbl}
-                      labelKey={lbl}
-                      events={grouped[lbl]}
-                      globalIndices={grouped[lbl].map(x => x.globalIndex)}
-                      onChangeByGlobal={handleEventChange}
-                      onRemoveByGlobal={handleRemoveEvent}
-                      onAdd={() => handleAddEvent(lbl)}
-                    />
-                  ) : null
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+              {/* Decorative Divider */}
+              <div className="h-px w-full bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 mb-10" />
 
-        {/* ── Footer ── */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "14px 24px", borderTop: "1px solid #f3f4f6", flexShrink: 0, background: "#fff",
-        }}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
-            {existingCourseId
-              ? <>Sẽ <b>cập nhật</b> khóa học và đồng bộ <b>{events.length}</b> sự kiện</>
-              : <>Sẽ tạo <b>{events.length}</b> sự kiện trong calendar</>}
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            {error && (
-              <div style={{ fontSize: 12, color: "#dc2626", maxWidth: 340, textAlign: "right", whiteSpace: "pre-line" }}>⚠️ {error}</div>
-            )}
-            <button
-              onClick={() => setConfirmDiscard(true)}
-              style={{ padding: "9px 16px", border: "1px solid #fca5a5", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer", color: "#dc2626" }}
-            >Xóa</button>
-            <button
-              onClick={onClose}
-              style={{ padding: "9px 20px", border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer", color: "#374151" }}
-            >Hủy</button>
-            <button
-              onClick={handleConfirm}
-              disabled={loading}
-              style={{
-                padding: "9px 22px", background: loading ? "#6b7280" : "#111", color: "#fff",
-                border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 6,
-              }}
-            >
-              {loading ? "Đang xử lý..." : (existingCourseId ? "Xác nhận & Cập nhật" : "Tạo khóa học")}
-            </button>
+              {/* Events Section */}
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Danh sách lịch trình</h3>
+                  </div>
+                  <span className="text-[13px] font-medium text-blue-700 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full">{events.length} sự kiện chiết xuất</span>
+                </div>
+
+                {events.length === 0 ? (
+                  <div className="text-center py-16 bg-gray-50 rounded-2xl border border-gray-200 border-dashed">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
+                      <Calendar className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <p className="text-[15px] font-medium text-gray-900 mb-1">Chưa có sự kiện nào</p>
+                    <p className="text-[13px] text-gray-500">Tài liệu này không chứa bất kỳ lịch trình nào.</p>
+                  </div>
+                ) : (
+                  <div>
+                    {LABEL_ORDER.map(lbl => (
+                      grouped[lbl]?.length > 0 ? (
+                         <EventGroup key={lbl} labelKey={lbl} events={grouped[lbl]} onChangeByGlobal={handleEventChange} onRemoveByGlobal={handleRemoveEvent} onAdd={() => handleAddEvent(lbl)} />
+                      ) : null
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sticky Actions Footer */}
+            <div className="px-6 lg:px-8 py-5 border-t border-gray-100 bg-white flex items-center justify-between flex-shrink-0 relative z-10 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.05)]">
+               <div className="text-[13px] text-gray-500 hidden sm:block">
+                  {existingCourseId ? <span>Đang cập nhật <strong>khóa học hiện tại</strong></span> : <span>Sẽ xác nhận tạo mới với <strong>{events.length}</strong> nhiệm vụ</span>}
+               </div>
+               <div className="flex items-center gap-3 ml-auto">
+                  {error && <div className="text-[13px] text-red-600 font-medium mr-2 max-w-[200px] sm:max-w-xs truncate" title={error}>⚠️ {error}</div>}
+                  <button onClick={() => setConfirmDiscard(true)} className="px-4 py-2.5 text-[13px] font-semibold text-red-600 bg-white border border-red-200 hover:bg-red-50 hover:border-red-300 rounded-xl transition-all">
+                    Xóa tài liệu
+                  </button>
+                  <button onClick={handleConfirm} disabled={loading} className={`px-6 py-2.5 text-[13px] font-bold text-white rounded-xl transition-all flex items-center gap-2 ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow hover:-translate-y-0.5'}`}>
+                    {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {loading ? "Đang xử lý..." : (existingCourseId ? "Lưu cập nhật" : "Xác nhận & Tạo khóa học")}
+                  </button>
+               </div>
+            </div>
           </div>
         </div>
       </div>
-      {/* ── Zoom Overlay ── */}
+
+      {/* Zoom Modal */}
       {isZoomed && imageUrl && (
-        <div 
-          onClick={() => setIsZoomed(false)}
-          style={{
-            position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.85)", 
-            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "zoom-out", padding: 24
-          }}
-        >
-          <img
-            src={imageUrl}
-            alt="Phóng to tài liệu"
-            style={{
-              maxWidth: "100%", maxHeight: "100%", 
-              objectFit: "contain", borderRadius: 4,
-              boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
-            }}
-          />
+        <div onClick={() => setIsZoomed(false)} className="fixed inset-0 z-[9999] bg-gray-900/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-12 cursor-zoom-out">
+          <img src={imageUrl} alt="Bản gốc" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl ring-1 ring-white/10" />
         </div>
       )}
+
+      {/* Discard Confirmation */}
       {confirmDiscard && (
         <ConfirmDialog
-          message="Bạn có chắc muốn xóa syllabus này không? Thao tác này không thể hoàn tác."
-          confirmLabel="Xóa"
-          cancelLabel="Hủy"
+          message="Bạn có chắc muốn xóa vĩnh viễn tài liệu này? Mọi dữ liệu đã chiết xuất sẽ bị hủy bỏ ngay lập tức."
+          confirmLabel="Đồng ý xóa"
+          cancelLabel="Giữ lại"
           onCancel={() => setConfirmDiscard(false)}
           onConfirm={async () => {
-            try {
-              await syllabusService.delete(upload.id);
-              onDiscarded?.(upload.id);
-            } catch {
-              setError("Không thể xóa. Vui lòng thử lại.");
-              setConfirmDiscard(false);
-            }
+            try { await syllabusService.delete(upload.id); onDiscarded?.(upload.id); } 
+            catch { setError("Xảy ra lỗi, không thể xóa tài liệu này."); setConfirmDiscard(false); }
           }}
         />
       )}
-    </div> // Đây là thẻ </div> đóng cuối cùng của component hiện tại
+    </div>
   );
 }

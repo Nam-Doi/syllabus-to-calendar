@@ -84,12 +84,12 @@ export default function CalendarPage() {
         // Detect redirect back from Google OAuth
         const params = new URLSearchParams(window.location.search);
         if (params.get("connected") === "1") {
-          setSyncSuccess("Google Calendar đã được kết nối thành công! Bấm Sync để đồng bộ.");
+          setSyncSuccess("Google Calendar connected successfully! Click Sync to sync.");
           calendarService.status().then(setSyncStatus).catch(() => {});
           window.history.replaceState({}, "", window.location.pathname);
         }
         if (params.get("error")) {
-          setSyncError(`Kết nối thất bại: ${params.get("error")}`);
+          setSyncError(`Connection failed: ${params.get("error")}`);
           window.history.replaceState({}, "", window.location.pathname);
         }
     }, [courseId]);
@@ -146,7 +146,7 @@ export default function CalendarPage() {
         setSyncing(true);
         try {
           const result = await calendarService.sync();
-          setSyncSuccess(result.message || "Sync thành công!");
+          setSyncSuccess(result.message || "Sync successfully!");
           const status = await calendarService.status();
           setSyncStatus(status);
           
@@ -158,8 +158,8 @@ export default function CalendarPage() {
           }
         } catch (err: unknown) {
           const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-            (err instanceof Error ? err.message : "Sync thất bại. Vui lòng thử lại.");
-          setSyncError(typeof msg === "string" ? msg : "Sync thất bại");
+            (err instanceof Error ? err.message : "Sync failed. Please try again.");
+          setSyncError(typeof msg === "string" ? msg : "Sync failed");
         } finally {
           setSyncing(false);
         }
@@ -241,13 +241,13 @@ export default function CalendarPage() {
             {/* Sync notifications */}
             {syncError && (
               <div style={{ padding: "10px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: 13, color: "#dc2626", display: "flex", justifyContent: "space-between" }}>
-                <span>❌ {syncError}</span>
+                <span>{syncError}</span>
                 <button onClick={() => setSyncError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626" }}>✕</button>
               </div>
             )}
             {syncSuccess && (
               <div style={{ padding: "10px 16px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 13, color: "#16a34a", display: "flex", justifyContent: "space-between" }}>
-                <span>✅ {syncSuccess}</span>
+                <span>{syncSuccess}</span>
                 <button onClick={() => setSyncSuccess(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a" }}>✕</button>
               </div>
             )}

@@ -255,7 +255,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ fontSize: 14, color: "#9ca3af" }}>Đang tải...</div>
+      <div style={{ fontSize: 14, color: "#9ca3af" }}>Loading...</div>
     </div>
   );
 
@@ -263,7 +263,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-gray-50">
       <TopNav />
       <div className="flex w-full pt-16">
-        {!pathname.startsWith('/calendar') && <Sidebar />}
+        {!pathname.startsWith('/calendar') && !pathname.startsWith('/tasks') && <Sidebar />}
         <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col">
           <main className="flex-1">
             <AnimatePresence mode="wait">

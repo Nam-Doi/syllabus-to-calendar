@@ -30,7 +30,7 @@ export function ChatInterface() {
   const defaultAssistantMessage: UIMessage = {
     id: "intro",
     role: "assistant",
-    text: "Xin chào! Tôi là trợ lý AI — tôi có thể truy vấn trực tiếp dữ liệu lịch trình, khóa học và sự kiện. Hãy hỏi tôi bất cứ điều gì!",
+    text: "Hello! I'm an AI assistant — I can directly query schedule, course, and event data. Ask me anything!",
     timestamp: new Date(),
   };
   const [messages, setMessages] = useState<UIMessage[]>([
@@ -91,7 +91,7 @@ export function ChatInterface() {
     const resetMessage: UIMessage = {
       id: `${Date.now()}`,
       role: "assistant",
-      text: "Lịch sử chat đã được xóa. Tôi có thể hỗ trợ gì tiếp theo?",
+      text: "Chat history has been cleared. What can I help you with next?",
       timestamp: new Date(),
     };
     setMessages([resetMessage]);
@@ -144,7 +144,7 @@ export function ChatInterface() {
           id: Date.now().toString(),
           role: "assistant",
           text:
-            "⚠️ Xin lỗi, có lỗi kết nối tới AI. Vui lòng thử lại sau.",
+            "⚠️ Sorry, there is an error connecting to AI. Please try again later.",
           timestamp: new Date(),
         },
       ]);
