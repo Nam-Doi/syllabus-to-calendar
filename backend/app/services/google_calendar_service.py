@@ -108,8 +108,8 @@ async def delete_google_calendar_event(
 
     if resp.status_code == 204:
         logger.info("Deleted Google Calendar event %s", google_event_id)
-    elif resp.status_code == 404:
-        logger.warning("Google Calendar event %s not found (already deleted)", google_event_id)
+    elif resp.status_code in (404, 410):
+        logger.warning("Google Calendar event %s not found or already deleted (status_code: %s)", google_event_id, resp.status_code)
     else:
         logger.error(
             "Failed to delete Google Calendar event %s: %s %s",

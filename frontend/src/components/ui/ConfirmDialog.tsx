@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 interface ConfirmDialogProps {
   message: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
   confirmLabel?: string;
   cancelLabel?: string;
@@ -19,6 +21,18 @@ export function ConfirmDialog({
   confirmLabel = "Delete",
   cancelLabel = "Cancel",
 }: ConfirmDialogProps) {
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleConfirm = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div style={{
       position: "fixed", inset: 0, background: "rgba(32,33,36,0.6)",
@@ -39,15 +53,17 @@ export function ConfirmDialog({
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button
             onClick={onCancel}
-            style={{ padding: "8px 24px", border: "none", borderRadius: 4, background: "transparent", color: "#1a73e8", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+            disabled={isProcessing}
+            style={{ padding: "8px 24px", border: "none", borderRadius: 4, background: "transparent", color: isProcessing ? "#9aa0a6" : "#1a73e8", fontSize: 14, fontWeight: 500, cursor: isProcessing ? "not-allowed" : "pointer" }}
           >
             {cancelLabel}
           </button>
           <button
-            onClick={onConfirm}
-            style={{ padding: "8px 24px", border: "none", borderRadius: 4, background: "transparent", color: "#d93025", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+            onClick={handleConfirm}
+            disabled={isProcessing}
+            style={{ padding: "8px 24px", border: "none", borderRadius: 4, background: "transparent", color: isProcessing ? "#9aa0a6" : "#d93025", fontSize: 14, fontWeight: 500, cursor: isProcessing ? "not-allowed" : "pointer" }}
           >
-            {confirmLabel}
+            {isProcessing ? "Processing..." : confirmLabel}
           </button>
         </div>
       </div>
