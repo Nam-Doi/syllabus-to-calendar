@@ -135,13 +135,38 @@ export default function CalendarPage() {
     const handleSync = async () => {
         setSyncError(null); setSyncSuccess(null);
     
-        // If not connected → redirect to Google OAuth with JWT as state
+        // If not connected → redirect to Google OAuth with JWT as state (via Vercel callback)
         if (!syncStatus?.connected) {
           const token = localStorage.getItem("access_token");
-          const redirectUrl = `${process.env.NEXT_PUBLIC_API_URL}/auth/google/login${token ? `?state=${encodeURIComponent(token)}` : ""}`;
-          window.location.href = redirectUrl;
+          const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+          const callbackUrl = `${window.location.origin}/auth/google/callback`;
+          const scope = [
+            "openid",
+            "email",
+            "profile",
+            "https://www.googleapis.com/auth/calendar",
+          ].join(" ");
+
+          if (GOOGLE_CLIENT_ID) {
+            // Production: build OAuth URL on frontend, callback goes to Vercel
+            const params = new URLSearchParams({
+              client_id: GOOGLE_CLIENT_ID,
+              redirect_uri: callbackUrl,
+              response_type: "code",
+              scope,
+              access_type: "offline",
+              prompt: "consent",
+              ...(token ? { state: token } : {}),
+            });
+            window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+          } else {
+            // Fallback: use backend login redirect (works locally)
+            const redirectUrl = `${process.env.NEXT_PUBLIC_API_URL}/auth/google/login${token ? `?state=${encodeURIComponent(token)}` : ""}`;
+            window.location.href = redirectUrl;
+          }
           return;
         }
+
     
         setSyncing(true);
         try {

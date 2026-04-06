@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import httpx
@@ -116,7 +117,7 @@ async def google_login(state: str | None = None):
 
 @router.get("/google/callback")
 async def google_callback(code: str, state: str | None = None, db: AsyncSession = Depends(get_db)):
-    """Google redirect về đây với authorization code"""
+    """Google redirect về đây với authorization code (used for local dev)"""
     frontend_url = settings.FRONTEND_URL
 
     async with httpx.AsyncClient() as client:
@@ -200,6 +201,85 @@ async def google_callback(code: str, state: str | None = None, db: AsyncSession 
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
     )
+
+
+class GoogleExchangeRequest(BaseModel):
+    code: str
+    state: str | None = None
+
+
+@router.post("/google/exchange")
+async def google_exchange(body: GoogleExchangeRequest, db: AsyncSession = Depends(get_db)):
+    """Exchange Google auth code from Vercel frontend callback. Used in production
+    because Render router blocks the direct GET /google/callback endpoint."""
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "code": body.code,
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+    token_data = token_resp.json()
+    google_access_token = token_data.get("access_token")
+    google_refresh_token = token_data.get("refresh_token")
+
+    if not google_access_token:
+        raise HTTPException(status_code=400, detail="google_token_failed")
+
+    user = None
+
+    if body.state:
+        try:
+            payload = decode_token(body.state)
+            user_id = payload.get("sub")
+            if user_id:
+                result = await db.execute(select(User).where(User.id == UUID(user_id)))
+                user = result.scalar_one_or_none()
+        except Exception:
+            pass
+
+    if not user:
+        async with httpx.AsyncClient() as client:
+            info_resp = await client.get(
+                GOOGLE_USERINFO_URL,
+                headers={"Authorization": f"Bearer {google_access_token}"},
+            )
+        info = info_resp.json()
+        email = info.get("email")
+        name = info.get("name")
+        if not email:
+            raise HTTPException(status_code=400, detail="no_email")
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if not user:
+            user = User(email=email, name=name, password_hash="")
+            db.add(user)
+            await db.flush()
+
+    result = await db.execute(
+        select(GoogleCalendarSync).where(GoogleCalendarSync.user_id == user.id)
+    )
+    sync = result.scalar_one_or_none()
+
+    if sync:
+        sync.access_token = google_access_token
+        if google_refresh_token:
+            sync.refresh_token = google_refresh_token
+    else:
+        sync = GoogleCalendarSync(
+            user_id=user.id,
+            access_token=google_access_token,
+            refresh_token=google_refresh_token,
+        )
+        db.add(sync)
+
+    await db.commit()
+    return {"success": True}
+
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):
