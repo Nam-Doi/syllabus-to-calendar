@@ -74,4 +74,4 @@ Vercel is purpose-built for Next.js, making the setup virtually `zero-config`.
 4. Click **Deploy**. Vercel will handle the entire build process natively and provide you with a live URL (e.g., `https://your-project.vercel.app`).
 
 ---
-*Developed with ❤️ as a structured monorepo.*
+*ARTHUR DOI.*
