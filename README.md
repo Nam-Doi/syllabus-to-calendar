@@ -316,10 +316,6 @@ npm run tsc
 
 # Build test
 npm run build
-```
-
----
-<<<<<<< HEAD
 
 ## 🔒 Security Considerations
 
@@ -391,74 +387,3 @@ alembic downgrade -1  # Rollback one migration if needed
 - [ ] Support for multiple languages
 
 ---
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how to get started:
-
-1. **Fork the repository** on GitHub
-2. **Clone your fork:**
-   ```bash
-   git clone https://github.com/your-username/syllabus-to-calendar.git
-   cd syllabus-to-calendar
-   ```
-
-3. **Create a feature branch:**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-4. **Make your changes** and commit:
-   ```bash
-   git commit -m "Add your descriptive commit message"
-   ```
-
-5. **Push to your fork:**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-6. **Create a Pull Request** with:
-   - Clear description of changes
-   - Reference to any related issues
-   - Screenshots if UI changes
-
-
-## 📄 License
-
-This project is licensed under the **MIT License** - see details below:
-
-```
-MIT License
-
-Copyright (c) 2026 Syllabus to Calendar Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
-
----
-
-## 👥 Support & Community
-
-- **Issues:** Report bugs on [GitHub Issues](https://github.com/your-repo/issues)
-- **Discussions:** Join our community on [GitHub Discussions](https://github.com/your-repo/discussions)
-- **Documentation:** Full API docs at `/docs` endpoint
-- **Email:** nammount19@gmail.com
-
-
----
-
-**Last Updated:** April 10, 2026
-**Maintainer:** ARTHUR DOI / Organization  
-**Status:** ✅ Active Development
-=======
-*ARTHUR DOI.*
->>>>>>> 8311aa6ccdca857815642f5a25e01ecc7b1f4849
